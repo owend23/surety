@@ -182,5 +182,3 @@ def deposit_total(df, date):
         'Debits': debits,
         'Credits': credits
     })
-
-
