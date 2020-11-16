@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sun Nov 15 06:33:16 2020
-
-@author: owen
+Main loop creates a new spreadsheet based off the input from the user giving the filename.
 """
 
 import surety_v4 as st4
