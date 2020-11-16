@@ -108,7 +108,19 @@ def parse_counts(df, date):
                 dates.append(date)
                 types.append('G/L Account')
                 acct_descr.append('')
-                descr_ref.append(date + ' RQ DEP')   
+                descr_ref.append(date + ' RQ DEP')
+    
+    unit_offset_sum = sum(debits)
+    dates.append(date)
+    types.append('G/L Account')
+    accounts.append('99998')
+    states.append('00')
+    branches.append('000')
+    depts.append('00')
+    acct_descr.append('')
+    descr_ref.append(date + ' RQ DEP')
+    debits.append('')
+    credits.append(float(unit_offset_sum))
     
     return pd.DataFrame({
         'Date': dates,
