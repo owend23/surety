@@ -27,10 +27,10 @@ def parse_worksheet(df, date):
                     file = df['File Number'][i - 3]
                     state = df['File Number'][i - 3].split('-')[-1]
                     if df['Invoice Line Total'][i - 1] >= 0:
-                        credits.append(df['Invoice Line Total'][i - 1])
+                        credits.append(df['Invoice Line Total'][i - 2])
                         debits.append('')
                     else:
-                        debits.append(abs(df['Invoice Line Total'][i - 1]))
+                        debits.append(abs(df['Invoice Line Total'][i - 2]))
                         credits.append('')
     
                 if not state == 'R':
