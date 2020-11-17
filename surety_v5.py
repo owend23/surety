@@ -17,15 +17,18 @@ def parse_worksheet(df, date):
                 try:
                     file = df['File Number'][i - 1]
                     state = df['File Number'][i - 1].split('-')[-1]
+					
                     if df['Invoice Line Total'][i] >= 0:
                         credits.append(df['Invoice Line Total'][i])
                         debits.append('')
-                    else:
+                	else:
 						debits.append(abs(df['Invoice Line Total'][i]))
 						credits.append('')
                 except AttributeError:
-                    file = df['File Number'][i - 3]
+					
+                	file = df['File Number'][i - 3]
 					state = df['File Number'][i - 3].split('-')[-1]
+					
 					if df['Invoice Line Total'][i - 1] >= 0:
 						credits.append(df['Invoice Line Total'][i - 1])
 						debits.append('')
