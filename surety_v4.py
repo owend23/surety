@@ -208,5 +208,5 @@ def scan_folder(folder):
         if not file.endswith('count.xls'):
             reports.append(file)
         else:
-	        counts.append(file)
+	    	counts.append(file)
     return list(zip(reports, counts))
