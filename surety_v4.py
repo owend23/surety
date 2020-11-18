@@ -27,11 +27,9 @@ def parse_worksheet(df, date):
                 else:
                     debits.append(abs(round(df['Invoice Line Total'][i], 2)))
                     credits.append('')
-                
                 file = df['File Number'][i - 1]
                 state = df['File Number'][i - 1].split('-')[-1]
 
-    
                 if not state == 'R':
                     states.append(state)
                 else:
@@ -118,9 +116,7 @@ def parse_counts(df, date):
                 acct_descr.append('')
                 descr_ref.append(date + ' RQ DEP')
                 descr_ref.append(date + ' RQ DEP')
-                
-
-                
+               
     offset_sum = sum(debits)
     dates.append(date)
     types.append('G/L Account')
