@@ -21,7 +21,6 @@ def parse_worksheet(df, date):
                 acct = cell
         else:
             if str(cell) == 'nan':
-                # TRY PARSING FILE NUMBER FIRST TO AVOID COMPANY TOTALS
                 if df['Invoice Line Total'][i] >= 0:
                     credits.append(round(df['Invoice Line Total'][i], 2))
                     debits.append('')
