@@ -201,12 +201,3 @@ def deposit_total(df, date):
         'Debits': debits,
         'Credits': credits
     })
-
-def scan_folder(folder):
-    reports, counts = [], []
-    for file in os.listdir(folder):
-        if not file.endswith('count.xls'):
-            reports.append(file)
-        else:
-	    	counts.append(file)
-    return list(zip(reports, counts))
