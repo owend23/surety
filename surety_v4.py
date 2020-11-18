@@ -203,10 +203,10 @@ def deposit_total(df, date):
     })
 
 def scan_folder(folder):
-    res = []
-    files = sorted([file for file in os.listdir(folder) if file.endswith('.xls')])
-    crystal_reports = [file for file in files if not file.endswith('_count.xls')]
-    count_files = [file for file in files if file.endswith('_count.xls')]
-    for i, file in enumerate(files):
-        res.append((file, file.split('.')[0] + '_count.xls'))
-    return res
+    reports, counts = [], []
+    for file in os.listdir(folder):
+        if not file.endswith('count.xls'):
+            reports.append(file)
+        else:
+	        counts.append(file)
+    return list(zip(reports, counts))
