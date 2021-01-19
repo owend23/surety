@@ -14,13 +14,13 @@ def parse_general_ledger(filename):
 	for account in accounts:
 		acct = account
 		for branch in branches:
-			acct += branch
-			for state in states:
-				acct += state
+			acct += '-' + branch
+		for state in states:
+			acct += '-' + state
 		full_accounts.append(acct)
 	
 	for i, cell in enumerate(df['Posting Date']):
 		date = str(df['Posting Date'][i].split('/'))
 		if not int(date[1]) == 1:
-			date[1] = '1'
+			date[1] = '01'
 		df['Posting Date'][i] = '/'.join(date)
