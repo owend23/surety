@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-program that parses through spreadsheets, grabbing data and formatting it for
-posting to business central
-"""
 import os
 import pandas as pd
 
@@ -29,7 +23,11 @@ def parse_worksheet(df, date):
                     credits.append('')
                 
                 file = df['File Number'][i - 1]
-                state = df['File Number'][i - 1].split('-')[-1]
+                
+                if file.startswith('CS'):
+                    state = '01'
+                else:
+                    state = df['File Number'][i - 1].split('-')[-1]
     
                 if not state == 'R':
                     states.append(state)
@@ -75,7 +73,6 @@ def parse_worksheet(df, date):
             acct_descr.append('')
             descr_ref.append(dr)
             accounts.append(acct)
-            
 
     return pd.DataFrame({
         'Date': dates,
@@ -88,7 +85,7 @@ def parse_worksheet(df, date):
         'Description Reference': descr_ref,
         'Debits': debits,
         'Credits': credits
-    })
+        })
 
 def parse_counts(df, date):
     accounts, states, branches, depts, debits, credits = [], [], [], [], [], []
@@ -103,7 +100,7 @@ def parse_counts(df, date):
                     accounts.append('96024')
                     accounts.append(df['col5'][i].strip('-'))
                 else:
-                    accounts.append(cell.strip('-'))
+                    accounts.append(str(cell).strip('-'))
                     accounts.append(df['col5'][i].strip('-'))
                 
                 if not df['col1'][i].strip('-') == '???????':
@@ -210,6 +207,8 @@ def deposit_total(df, date):
         bank_account = 'OPERTD6791'
     elif co == 'Jackson Title Agency, LLC':
         bank_account = 'OPERBU0595'
+    elif co == 'Surety Abstract Ventures, LLC':
+        bank_account = 'OPERTD8201'
         
     accounts.append(bank_account)
     states.append('00')
@@ -236,11 +235,34 @@ def deposit_total(df, date):
         'Credits': credits
     })
 
+def check_workbook(file):
+    wb = pd.ExcelFile(file)
+    sheets = wb.sheet_names
+    
+    for sheet in sheets:
+        ws = wb.parse(sheet)
+        deposit_total = ws[ws['Type'] == 'Bank Account']['Debits'].sum()
+        acct_total = 0
+        
+        for i, cell in enumerate(ws['Account']):
+            if cell.startswith('96'):
+                acct_total += ws['Debits'][i]
+                
+        deposit_total = round(deposit_total, ndigits=2)
+        acct_total = round(acct_total, ndigits=2)
+                
+        if deposit_total == acct_total:
+            continue
+        else:
+            print(sheet + ' is off balance')
+            print('Deposit Total:', deposit_total)
+            print('Account Total:', acct_total)
+            print('Difference:', round(deposit_total - acct_total, ndigits=2))
+            print('\n')
+
 def create_sheet(dir):
     date = input('Date: ')
-
     wb_date = date.replace('/', '_')
-
     ending = ' cash_receipts.xlsx'
     
     sheets = []
@@ -271,11 +293,8 @@ def create_sheet(dir):
             
         total = deposit_total(df, date)
         count = parse_counts(df2, date)
-        
         frames = [report, total, count]
-        
         df = pd.concat(frames)
-        
         sheets.append((df, sheet))
         
     file = open(wb_date + ending, 'wb')
@@ -286,7 +305,8 @@ def create_sheet(dir):
     with pd.ExcelWriter(file) as writer:
         for i in range(len(sheets)):
             sheets[i][0].to_excel(writer, sheet_name=sheets[i][1], index=False)
-    
+
+    check_workbook(file)
     
 create_sheet('docs/cash_receipts/')
         
