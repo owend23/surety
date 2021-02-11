@@ -245,7 +245,7 @@ def check_workbook(file):
         acct_total = 0
         
         for i, cell in enumerate(ws['Account']):
-            if cell.startswith('96'):
+            if str(cell).startswith('96'):
                 acct_total += ws['Debits'][i]
                 
         deposit_total = round(deposit_total, ndigits=2)
