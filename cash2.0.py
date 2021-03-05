@@ -467,6 +467,7 @@ def create_sheet(dir):
             sheets[i][0].to_excel(writer, sheet_name=sheets[i][1], index=False)
 
     check_workbook(file)
+    find_shortages(file)
 
 
 create_sheet('docs/cash_receipts')
