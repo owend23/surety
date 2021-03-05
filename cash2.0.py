@@ -3,6 +3,19 @@ import numpy as np
 import datetime
 import os
 
+def find_shortages(filename):
+    xl = pd.ExcelFile(filename)
+    for sheet in xl.sheet_names:
+        df = xl.parse(sheet)
+        if '66302' in df['Account'].tolist():
+            print('66302')
+            print(sheet)
+            print()
+        elif '66300' in df['Account'].tolist():
+            print('66300')
+            print(sheet)
+            print()
+
 def get_accounts(df):
     for i, cell in enumerate(df['Description']):
         if not type(cell) == float:
@@ -67,7 +80,7 @@ def get_credits(df):
                 yield np.nan
         elif str(cell) == 'Deposit Total':
             yield np.nan
-			
+
 def get_debits(df):
     for i, cell in enumerate(df['Description']):
         if str(cell) == 'Accounting Code Total':
@@ -77,21 +90,21 @@ def get_debits(df):
                 yield np.nan
         elif str(cell) == 'Deposit Total':
             yield round(df['Invoice Line Total'][i], ndigits=2)
-			
+
 def get_dates(df):
     for i, cell in enumerate(df['Description']):
         if str(cell) == 'Accounting Code Total':
             yield datetime.date.strftime(df['PaymentDate'][i - 1], "%m/%d/%Y")
         elif str(cell) == 'Deposit Total':
             yield datetime.date.strftime(df['PaymentDate'][i - 2], "%m/%d/%Y")
-			
+
 def get_types(df):
     for i, cell in enumerate(df['Description']):
         if str(cell) == 'Accounting Code Total':
             yield 'G/L Account'
         elif str(cell) == 'Deposit Total':
             yield 'Bank Account'
-			
+
 def get_state_codes(df):
     for i, cell in enumerate(df['Description']):
         if str(cell) == 'Accounting Code Total':
@@ -142,7 +155,7 @@ def get_branches(df):
                 yield '000'
         elif str(cell) == 'Deposit Total':
             yield '000'
-			
+
 def get_department_codes(df):
     for i, cell in enumerate(df['Description']):
         if len(str(cell)) == 5 and str(cell).isnumeric():
@@ -154,21 +167,21 @@ def get_department_codes(df):
                 yield '00'
         elif str(cell) == 'Deposit Total':
             yield '00'
-			
+
 def get_account_descriptions(df):
     for i, cell in enumerate(df['Description']):
         if str(cell) == 'Accounting Code Total':
-            yield np.nan
+            yield ''
         elif str(cell) == 'Deposit Total':
-            yield np.nan
-			
+            yield ''
+
 def get_description_references(df):
     for i, cell in enumerate(df['Description']):
         if str(cell) == 'Accounting Code Total':
             yield datetime.date.strftime(df['PaymentDate'][i - 1], "%m/%d/%Y") + ' RQ DEP'
         elif str(cell) == 'Deposit Total':
             yield datetime.date.strftime(df['PaymentDate'][i - 2], "%m/%d/%Y") + ' RQ DEP'
-			
+
 def create_report(filename):
     df = pd.read_excel(filename)
     
@@ -197,13 +210,13 @@ def create_report(filename):
 
     if debits == credits:
         return df
-	
+
 def get_date(filename):
     df = pd.read_excel(filename)
     for i, cell in enumerate(df['Description']):
         if str(cell) == 'Accounting Code Total':
             return datetime.date.strftime(df['PaymentDate'][i - 1], "%m/%d/%Y")
-		
+
 def parse_counts(filename, date):
     df = pd.read_excel(filename)
 
@@ -297,19 +310,125 @@ def check_workbook(file):
             print('Difference:', round(deposit_total - acct_total, 2))
             print('\n')
 
-def find_shortages(filename):
-    xl = pd.ExcelFile(filename)
-    for sheet in xl.sheet_names:
-        df = xl.parse(sheet)
-        if '66302' in df['Account'].tolist():
-            print('66302')
-            print(sheet)
-            print()
-        elif '66300' in df['Account'].tolist():
-            print('66300')
-            print(sheet)
-            print()
-			
+def get_count_accounts(df):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    co = df.iloc[0, 0]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                if cell == '96021-' and co == 'ESL Title and Settlement Services ':
+                    yield '96024'
+                    yield str(df['col5'][i]).strip('-')
+                else:
+                    yield str(cell).strip('-')
+                    yield str(df['col5'][i]).strip('-')
+    yield '99998'
+
+def get_count_states(df):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                if not str(df['col1'][i]).strip('-') == '???????':
+                    yield str(df['col1'][i]).strip('-')
+                    yield str(df['col1'][i]).strip('-')
+                else:
+                    yield '01'
+                    yield '01'
+    yield '00'
+
+def get_count_branches(df):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                yield str(df['col2'][i]).strip('-')
+                yield str(df['col2'][i]).strip('-')
+    yield '000'
+
+def get_count_depts(df):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                yield '00'
+                yield '00'
+    yield '00'
+
+def get_count_debits(df):
+    total = 0
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                yield round(df['col4'][i], 2)
+                yield round(df['col10'][i], 2)
+                total += round(df['col4'][i], 2)
+                total += round(df['col10'][i], 2)
+    yield total
+
+
+def get_count_credits(df):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                yield np.nan
+                yield np.nan
+    yield np.nan
+
+def get_count_dates(df, date):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                yield date
+                yield date
+    yield date
+
+def get_count_types(df):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                yield 'G/L Account'
+                yield 'G/L Account'
+    yield 'G/L Account'
+
+def get_count_acct_descr(df):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                yield np.nan
+                yield np.nan
+    yield np.nan
+
+def get_count_descr_refs(df, date):
+    df.columns = ['col' + str(i) for i in range(len(df.columns))]
+    for i, cell in enumerate(df['col0']):
+        if not type(cell) == float:
+            if str(cell).startswith('9'):
+                yield date + ' RQ DEP'
+                yield date + ' RQ DEP'
+    yield date + ' RQ DEP'
+
+def create_count_report(filename, date):
+    df = pd.read_excel(filename)
+    return pd.DataFrame({
+        'Date': list(get_count_dates(df, date)),
+        'Type': list(get_count_types(df)),
+        'Account': list(get_count_accounts(df)),
+        'St': list(get_count_states(df)),
+        'Branch': list(get_count_branches(df)),
+        'Dept': list(get_count_depts(df)),
+        'Account Desr': list(get_count_acct_descr(df)),
+        'Description Reference': list(get_count_descr_refs(df, date)),
+        'Debits': list(get_count_debits(df)),
+        'Credits': list(get_count_credits(df)),
+        })
+    
+
 def create_sheet(dir):
     wb_date = ''
     ending = ' cash_receipts.xlsx'
@@ -332,13 +451,13 @@ def create_sheet(dir):
         sheet = file.split('.')[0]
 
         report = create_report('docs/cash_receipts/' + file)
-        count = parse_counts('docs/cash_receipts/' + counts[i], date)
+        count = create_count_report('docs/cash_receipts/' + counts[i], date)
         frames = [report, count]
         df = pd.concat(frames)
         sheets.append((df, sheet))
 
     
-    file = open(wb_date + ending, 'wb')
+    file = open(f'{wb_date} {ending}', 'wb')
     file.close()
 
     file = wb_date + ending
@@ -348,6 +467,6 @@ def create_sheet(dir):
             sheets[i][0].to_excel(writer, sheet_name=sheets[i][1], index=False)
 
     check_workbook(file)
-	find_shortages(file)
+
 
 create_sheet('docs/cash_receipts')
