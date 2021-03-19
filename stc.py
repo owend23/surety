@@ -211,6 +211,107 @@ class Cash:
                     yield self.date + ' RQ DEP'
                     yield self.date + ' RQ DEP'
         yield self.date + ' RQ DEP'
+        
+class TD:
+
+    def __init__(self, path):
+        self.path = path
+        self._accts = self.load_accts()
+        self._cos = self.load_cos()
+        self.df = self.load_df()
+        self.report = pd.DataFrame({
+                                    'Type': list(self.types()),
+                                    'No': list(self.accounts()),
+                                    'State': list(self.states()),
+                                    'Branch Code': list(self.branches()),
+                                    'Dept Code': list(self.depts()),
+                                    'Description/Comment': list(self.descriptions()),
+                                    'Quantity': list(self.quantity()),
+                                    'Direct Unit Cost': list(self.costs()),
+                                    'IC Partner Ref Type': list(self.ref_type()),
+                                    'IC Partner Code': list(self.ic_partner_codes()),
+                                    'IC Partner Reference': list(self.ic_partner_refs()),
+        })
+        self.date = self.get_posting_date()
+
+    def load_accts(self):
+        with open('accts.pickle', 'rb') as f: return pickle.load(f)
+    
+    def load_cos(self):
+        return {}
+
+    def load_df(self):
+        df = pd.read_excel(self.path, converters={'MCC/SIC Code':str})
+        df = df[df['Merchant Name'] != 'AUTO PAYMENT DEDUCTION']
+        return df
+    
+    def accounts(self):
+        for i, cell in enumerate(self.df['MCC/SIC Code']):
+            if cell in self._accts.keys(): yield self._accts[cell]
+            else: yield np.nan
+
+    def types(self):
+        for _ in range(len(self.df)): yield 'G/L Account'
+
+    def states(self):
+        for i, cell in enumerate(self.df['Account Number']):
+            k = cell[-4:]
+            if k in self._cos.keys(): yield self._cos[k]['state']
+            else: yield '01'
+
+    def ref_type(self):
+        for i, cell in enumerate(self.df['Account Number']):
+            yield 'G/L Account'
+
+    def branches(self):
+        for i, cell in enumerate(self.df['Account Number']):
+            k = cell[-4:]
+            if k in self._cos.keys(): yield self._cos[k]['branch']
+            else: yield '000'
+
+    def descriptions(self):
+        L = [cell for i, cell in enumerate(self.df['Merchant Name'])]
+        for i, cell in enumerate(self.df['Originating Account Name']):
+            if str(cell) == 'nan': continue
+            else:
+                if len(cell.split()) == 2 and cell != 'COMMERCIAL DEPARTMENT':
+                    name = cell.split()
+                    initials = name[0][0] + name[1][0]
+                    L[i] = '{}-{}'.format(initials, L[i])
+                else: continue
+        for descr in L: yield descr
+
+    def quantity(self):
+        for _ in range(len(self.df)): yield 1
+
+    def costs(self):
+        for i, cell in enumerate(self.df['Original Amount']): yield round(cell, 2)
+
+    def ic_partner_codes(self):
+        for _ in range(len(self.df)): yield np.nan
+
+    def ic_partner_refs(self):
+        for _ in range(len(self.df)): yield np.nan
+
+    def depts(self):
+        for i, cell in enumerate(self.df['MCC/SIC Code']): yield '00'
+
+    def get_posting_date(self):
+        date = self.df.iloc[0, 0]
+        return '{}/{}/{}'.format(date.month, calendar.monthrange(date.year, date.month)[1], date.year)
+        
+def generate_td(dir):
+    frames = []
+    filename = ''
+    for file in os.listdir(dir):
+        sheet = file.split('Copy')[0]
+        if not dir.endswith('/'): dir += '/'
+        td = TD(dir + file)
+        filename = TD(dir + file).date.replace('/','_') + ' TD_Statements.xlsx'
+        frames.append((td.report, sheet))
+    
+    with pd.ExcelWriter(filename) as writer:
+        for i in range(len(frames)): frames[i][0].to_excel(writer, sheet_name=frames[i][1], index=False)
 
 def cash_receipts(dir):
     filename = ''
