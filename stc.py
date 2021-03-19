@@ -66,12 +66,10 @@ class Cash:
         return self.df2.iloc[0, 0]
 
     def get_branches(self):
-        with open('branches.pickle', 'rb') as f:
-            return pickle.load(f)
+        with open('branches.pickle', 'rb') as f: return pickle.load(f)
 
     def get_companies(self):
-        with open('companies.pickle', 'rb') as f:
-            return pickle.load(f)
+        with open('companies.pickle', 'rb') as f: return pickle.load(f)
 
     def get_co(self):
         return self.df.iloc[0, 0]
@@ -230,7 +228,4 @@ def cash_receipts(dir):
                     filename = Cash(dir + file).filename
         
     with pd.ExcelWriter(filename) as writer:
-        for i in range(len(frames)):
-            frames[i][0].to_excel(writer, sheet_name=frames[i][1], index=False)
-
-    
+        for i in range(len(frames)): frames[i][0].to_excel(writer, sheet_name=frames[i][1], index=False)
