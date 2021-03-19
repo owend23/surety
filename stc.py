@@ -47,7 +47,7 @@ class Cash:
             print('Deposit Total:', deposit_total)
             print('Account Total:', acct_total)
             print('Difference:', round(deposit_total - acct_total, 2))
-            print('\n')
+            print()
 
     def construct_filename(self):
         date = self.date.replace('/', '_')
