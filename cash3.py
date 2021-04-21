@@ -150,7 +150,6 @@ class Count:
                        'Debits': self.debits,
                        'Credits': list(self.credits()),
         })
-        self.ws = self.fix_report()
 
 
     def get_sheetname(self):
@@ -324,9 +323,9 @@ def create_frames(filename):
         frames.append(c.report)
         frames.append(count.report)
         frame = pd.concat(frames, ignore_index=True)
-        s = frame[frame['Type'] == 'Bank Account'].index.values[0]
-        e = frame[frame['Account'] == '99998'].index.values[0]
-        f = '=SUM(I{}:I{})'.format(s+3,e+1)
+        s = frame[frame['Type'] == 'Bank Account'].index.values[0] + 3
+        e = frame[frame['Account'] == '99998'].index.values[0] + 1
+        f = '=SUM(I{}:I{})'.format(s,e)
         arr.append((frame, sheetname, f, e))
 
     wb_date = wb_date.replace('/', '_')
@@ -335,7 +334,7 @@ def create_frames(filename):
     arr = sorted(arr, key=lambda x: x[1])
 
     with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
-        print('Creating', filename)
+        print('Creating', filename.split('/')[-1])
         for i in range(len(arr)):
             print('Adding Sheet', arr[i][1])
             arr[i][0].to_excel(writer, sheet_name=arr[i][1], index=False)
@@ -350,3 +349,6 @@ def create_frames(filename):
             worksheet.set_column('I:J', 9, cell_format=format1)
             worksheet.write_formula('J{}'.format(arr[i][-1] + 2), arr[i][-2])
         print('Worksheet finished')
+
+if __name__ == '__main__':
+    create_frames('cash.xls')
