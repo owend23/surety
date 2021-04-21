@@ -290,18 +290,14 @@ class Count:
             yield '{} RQ DEP'.format(self.date)
 
     def fix_report(self):
-        s,e,n = 0,0,0
         for i, cell in enumerate(self.report['Account']):
             if cell.startswith('???'):
-                n = self.report['Debits'][i]
                 self.report.drop([i], inplace=True)
-            elif cell == '99998':
-                e = i
-        total = self.report['Credits'][e]
-        self.report.loc[e, "Credits"] = round(total, 2) - n
-        if round(self.report['Debits'].sum(), 2) != round(self.report['Credits'].sum(), 2):
-            print(self.sheet, 'off balance by', round(self.report['Credits'].sum() - self.report['Debits'].sum(), 2))
-            
+            elif cell == '96021' and self.sheet == 'ESL NJ':
+                self.report.loc[i, 'Account'] = '96024'
+        for i, cell in enumerate(self.report['Debits']):
+            if cell == 0:
+                self.report.drop([i], inplace=True)
         
     def format(self):
         self.report.loc[:, "Debits":"Credits"].style.format("{:.2%}")
@@ -310,9 +306,6 @@ def create_frames(filename):
     wb_date = ''
     ending = 'cash_receipts.xlsx'
     df = pd.read_excel(filename)
-    for i, cell in enumerate(df['TitleCoNum']):
-        if cell == 138:
-            df.loc[i, 'TitleCoNum'] = 139
 
     L = list(df.groupby('EscrowBank'))
 
@@ -321,8 +314,8 @@ def create_frames(filename):
         frames = []
         df2 = L[i][1]
         count = Count(df2)
-        count.fix_report()
         count.format()
+        count.fix_report()
         wb_date = count.date
         df2 = df2.groupby(['TitleCoNum','State','AcctCode']).agg({"Invoice Line Total":'sum','PaymentDate':'last','File Number':'last','EscrowBank':'last'}).reset_index()
         c = Cash(df2)
@@ -333,11 +326,11 @@ def create_frames(filename):
         frame = pd.concat(frames, ignore_index=True)
         s = frame[frame['Type'] == 'Bank Account'].index.values[0]
         e = frame[frame['Account'] == '99998'].index.values[0]
-        f = '=SUM(I{}:I{})'.format(s,e)
+        f = '=SUM(I{}:I{})'.format(s+3,e+1)
         arr.append((frame, sheetname, f, e))
 
     wb_date = wb_date.replace('/', '_')
-    filename = '{} {}'.format(wb_date, ending)
+    filename = 'journals/{} {}'.format(wb_date, ending)
 
     arr = sorted(arr, key=lambda x: x[1])
 
@@ -349,11 +342,11 @@ def create_frames(filename):
             workbook = writer.book
             worksheet = writer.sheets[arr[i][1]]
             format1 = workbook.add_format({'num_format': '##0.00'})
-            worksheet.set_column(0, 2, 11.29)
-            worksheet.set_column(3, 3, 2.29)
-            worksheet.set_column(4, 5, 6.29)
-            worksheet.set_column(6, 6, 11.86)
-            worksheet.set_column(7, 7, 20.29)
-            worksheet.set_column('I:J', 8.29, cell_format=format1)
+            worksheet.set_column(0, 2, 12)
+            worksheet.set_column(3, 3, 3)
+            worksheet.set_column(4, 5, 7)
+            worksheet.set_column(6, 6, 12)
+            worksheet.set_column(7, 7, 21)
+            worksheet.set_column('I:J', 9, cell_format=format1)
             worksheet.write_formula('J{}'.format(arr[i][-1] + 2), arr[i][-2])
         print('Worksheet finished')
