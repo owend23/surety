@@ -157,14 +157,6 @@ class Count:
             if cell in self.accts.keys():
                 return self.accts[cell]['sheet']
 
-    def total_report(self):
-        total = 0
-        for i, cell in enumerate(self.report['Account']):
-            if cell.startswith('9'):
-                total += self.report['Debits'][i]
-        self.report.iloc[-1, -1] = round(total, 2)
-        self.report = self.report
-
 
     def get_date(self):
         for i, cell in enumerate(self.df['PaymentDate']):
@@ -347,7 +339,7 @@ def create_frames(filename):
             worksheet.set_column(6, 6, 12)
             worksheet.set_column(7, 7, 21)
             worksheet.set_column('I:J', 9, cell_format=format1)
-            worksheet.write_formula('J{}'.format(arr[i][-1] + 2), arr[i][-2])
+            worksheet.write_formula('J{}'.format(arr[i][-1] + 1), arr[i][-2])
         print('Worksheet finished')
 
 if __name__ == '__main__':
