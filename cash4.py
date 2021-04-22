@@ -347,8 +347,11 @@ def create_worksheet(filename):
             worksheet.set_column(0, 2, 12)
             worksheet.set_column(3, 3, 3)
             worksheet.set_column(4, 5, 7)
-            worksheet.set_column(6, 6, 12)
+            worksheet.set_column(6, 6, 15)
             worksheet.set_column(7, 7, 21)
             worksheet.set_column('I:J', 9, cell_format=format1)
             worksheet.write_formula('J{}'.format(arr[i][-1] + 1), arr[i][-2])
         print('Worksheet finished')
+
+if __name__ == '__main__':
+    create_worksheet('cash.xls')
