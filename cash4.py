@@ -138,8 +138,9 @@ class Cash:
 
 class Count:
 
-    def __init__(self, df):
+    def __init__(self, df, escrow):
         self.df = df
+        self.escrow = escrow
         self.totals = list(self.totals())
         self.accts = self.accounts()
         self.branches = self.branches()
@@ -147,7 +148,6 @@ class Count:
         self.counts = list(self.counts())
         self.debits = list(self.debits())
         self.date = self.get_date()
-        self.sheet = self.get_sheetname()
         self.report = pd.DataFrame({
                        'Date': list(self.dates()),
                        'Type': list(self.types()),
@@ -160,13 +160,6 @@ class Count:
                        'Debits': self.debits,
                        'Credits': list(self.credits()),
         })
-
-
-    def get_sheetname(self):
-        for i, cell in enumerate(self.df['EscrowBank']):
-            if cell in self.accts.keys():
-                return self.accts[cell]['sheet']
-
 
     def get_date(self):
         for i, cell in enumerate(self.df['PaymentDate']):
@@ -185,13 +178,9 @@ class Count:
         return list(self.df.groupby(['TitleCoNum','State','OrderCategory']))
 
     def totals(self):
-        L = self.df.groupby(['EscrowBank','TitleCoNum','State','OrderCategory']).agg({'Invoice Line Total':'sum','File Number':'first'}).reset_index()['Invoice Line Total'].tolist()
-        for cost in L:
+        arr = self.df.groupby(['EscrowBank','TitleCoNum','State','OrderCategory']).agg({'Invoice Line Total':'sum','File Number':'first'}).reset_index()['Invoice Line Total'].tolist()
+        for cost in arr:
             yield round(cost, 2)
-
-    def grouped_summary(self):
-        df = self.df.groupby(['EscrowBank','TitleCoNum','OrderCategory']).agg({'Invoice Line Total':'sum','File Number':'first'}).reset_index()
-        return df
 
     def co_branches(self):
         df = self.df.groupby(['EscrowBank','TitleCoNum','State','OrderCategory']).agg({'File Number':'first'}).reset_index()
@@ -218,7 +207,6 @@ class Count:
                 yield cell.split('-')[-1]
                 yield cell.split('-')[-1]
         yield '00'
-
     
     def counts(self):
         for i in range(len(self.g)):
@@ -242,11 +230,8 @@ class Count:
         yield np.nan
 
     def credits(self):
-        r = len(self.debits) - 1
-        for i in range(r):
+        for i in range(len(self.debits)):
             yield np.nan
-        yield self.deposit_total
-        
 
     def dates(self):
         for _ in range(len(self.debits)):
@@ -293,7 +278,7 @@ class Count:
         for i, cell in enumerate(self.report['Account']):
             if cell.startswith('???'):
                 self.report.drop([i], inplace=True)
-            elif cell == '96021' and self.sheet == 'ESL NJ':
+            elif cell == '96021' and self.accts[self.escrow]['sheet'] == 'ESL NJ':
                 self.report.loc[i, 'Account'] = '96024'
         for i, cell in enumerate(self.report['Debits']):
             if cell == 0:
@@ -314,7 +299,7 @@ def create_worksheet(filename):
         cash = Cash(escrow, df)
         cash.split_shortages()
         cash.format()
-        count = Count(df)
+        count = Count(df, escrow)
         count.format()
         count.fix_report()
         wb_date = cash.date
