@@ -22,7 +22,7 @@ class Cash:
             'St': list(self.states()),
             'Branch': list(self.branches()),
             'Dept': list(self.depts()),
-            'Account Desr': self.acct_desrs(),
+            'Account Desr': list(self.acct_desrs()),
             'Description Reference': list(self.descr_refs()),
             'Debits': list(self.debits()),
             'Credits': list(self.credits()),
@@ -121,16 +121,12 @@ class Cash:
         accounts = self.df['AcctCode'].tolist()
         files = self.df['File Number'].tolist()
         agents = self.df['CloseAgent'].tolist()
-        L = []
         for i in range(len(accounts)):
             if accounts[i] in ['66300','66302']:
-                s = files[i] + ' ' + agents[i]
-                L.append(s)
+                yield files[i] + ' ' + agents[i]
             else:
-                L.append('')
-        L.append('')
-
-        return L
+                yield np.nan
+        yield np.nan
 
     def descr_refs(self):
         for _ in range(len(self.df)):
