@@ -133,18 +133,20 @@ class Cash:
             yield '{} RQ DEP'.format(self.date)
         yield '{} RQ DEP'.format(self.date)
 
-    def format(self):
-        self.report.loc["Debits":"Credits"].style.format("{:.2%}")
+    def fix_report(self):
+        for i in range(len(self.report)):
+            if self.report['Credits'][i] == 0:
+                self.report.drop([i], inplace=True)
 
 class Count:
 
     def __init__(self, df, escrow):
-        self.df = df
+        self.frame = df
         self.escrow = escrow
+        self.df = self.group_frame()
         self.totals = list(self.totals())
         self.accts = self.accounts()
         self.branches = self.branches()
-        self.g = self.group()
         self.counts = list(self.counts())
         self.debits = list(self.debits())
         self.date = self.get_date()
@@ -161,8 +163,11 @@ class Count:
                        'Credits': list(self.credits()),
         })
 
+    def group_frame(self):
+        return self.frame.groupby(['TitleCoNum','State','OrderCategory']).agg({'Invoice Line Total':'sum','File Number':'first'}).reset_index()
+
     def get_date(self):
-        for i, cell in enumerate(self.df['PaymentDate']):
+        for i, cell in enumerate(self.frame['PaymentDate']):
             if type(cell) == pd._libs.tslibs.timestamps.Timestamp:
                 return datetime.date.strftime(cell, '%m/%d/%Y')
 
@@ -178,13 +183,11 @@ class Count:
         return list(self.df.groupby(['TitleCoNum','State','OrderCategory']))
 
     def totals(self):
-        arr = self.df.groupby(['EscrowBank','TitleCoNum','State','OrderCategory']).agg({'Invoice Line Total':'sum','File Number':'first'}).reset_index()['Invoice Line Total'].tolist()
-        for cost in arr:
-            yield round(cost, 2)
+        for i, cell in enumerate(self.df['Invoice Line Total']):
+            yield round(cell, 2)
 
     def co_branches(self):
-        df = self.df.groupby(['EscrowBank','TitleCoNum','State','OrderCategory']).agg({'File Number':'first'}).reset_index()
-        for i, cell in enumerate(df['File Number']):
+        for i, cell in enumerate(self.df['File Number']):
             k = cell[-5:]
             if k in self.branches.keys():
                 yield self.branches[k]
@@ -195,8 +198,7 @@ class Count:
         yield '000'
 
     def states(self):
-        df = self.df.groupby(['EscrowBank','TitleCoNum','State','OrderCategory']).agg({'File Number':'first'}).reset_index()
-        for i, cell in enumerate(df['File Number']):
+        for i, cell in enumerate(self.df['File Number']):
             if cell.startswith('CS'):
                 yield '01'
                 yield '01'
@@ -209,9 +211,10 @@ class Count:
         yield '00'
     
     def counts(self):
-        for i in range(len(self.g)):
-            tco,state,oc = self.g[i][0]
-            df2 = self.g[i][1]
+        L = list(self.frame.groupby(['TitleCoNum','State','OrderCategory']))
+        for i in range(len(L)):
+            tco,state,oc = L[i][0]
+            df2 = L[i][1]
             if oc in [1, 4]:
                 yield len(set(df2[df2.AcctCode == '40000']['File Number']))
             elif oc in [2, 5]:
@@ -284,23 +287,18 @@ class Count:
             if cell == 0:
                 self.report.drop([i], inplace=True)
         
-    def format(self):
-        self.report.loc[:, "Debits":"Credits"].style.format("{:.2%}")
 
 def create_worksheet(filename):
     df = pd.read_excel(filename, converters={'AcctCode':str, 'Invoice Line Total':float})
-
     ending = 'cash_receipts.xlsx'
-
     arr = []
 
     for escrow, df in df.groupby('EscrowBank'):
         frames = []
         cash = Cash(escrow, df)
         cash.split_shortages()
-        cash.format()
+        cash.fix_report()
         count = Count(df, escrow)
-        count.format()
         count.fix_report()
         wb_date = cash.date
         frames.append(cash.report)
