@@ -276,7 +276,6 @@ class Count:
             yield D[oc]['revenue']
             yield D[oc]['count']
         yield '99998'
-        L = list(range(len(df)))
 
     def depts(self):
         for _ in range(len(self.debits)):
