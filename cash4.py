@@ -1,20 +1,52 @@
 import pandas as pd
 import numpy as np
-import datetime
 import pickle
+import datetime
 
-class Cash:
+class Data:
 
-    def __init__(self, escrow, df):
+    def __init__(self, frame, escrow):
+        self.frame = frame
         self.escrow = escrow
-        self.frame = df
-        self.df = self.split_shortages()
-        self.date = self.get_posting_date()
         self.accts = self.load_accts()
         self.branch = self.load_branches()
+        self.date = self.get_posting_date()
+        self.filename = self.get_filename()
         self.total = self.get_total()
         self.acct = self.get_acct()
         self.sheet = self.get_sheetname()
+
+    def load_dataframe(self):
+        return pd.read_excel(self.file, converters={'AcctCode':str,'Invoice Line Total':float})
+
+    def load_accts(self):
+        with open('accounts.pickle', 'rb') as f: return pickle.load(f)
+
+    def load_branches(self):
+        with open('branches.pickle','rb') as f: return pickle.load(f)
+
+    def get_posting_date(self):
+        for i, cell in enumerate(self.frame['PaymentDate']):
+            if type(cell) == pd._libs.tslibs.timestamps.Timestamp:
+                return datetime.date.strftime(cell, '%m/%d/%Y')
+
+    def get_filename(self):
+        return 'journals/{} cash_receipts.xlsx'.format(self.date.replace('/','_'))
+
+    def get_total(self):
+        return round(self.frame['Invoice Line Total'].sum(), 2)
+
+    def get_acct(self):
+        return self.accts[self.escrow]['bank']
+
+    def get_sheetname(self):
+        return self.accts[self.escrow]['sheet']
+
+class Cash(Data):
+    
+    def __init__(self, frame, escrow):
+        super().__init__(frame, escrow)
+        self.df = self.split_shortages()
         self.report = pd.DataFrame({
             'Date': list(self.dates()),
             'Type': list(self.types()),
@@ -28,43 +60,20 @@ class Cash:
             'Credits': list(self.credits()),
             })
 
-    def load_accts(self):
-        with open('accounts.pickle', 'rb') as f: return pickle.load(f)
-
-    def load_branches(self):
-        with open('branches.pickle', 'rb') as f: return pickle.load(f)
-
     def split_shortages(self):
         shorts = ['66300','66302']
         if '66300' or '66302' in self.frame['AcctCode']:
             report = self.frame[~self.frame['AcctCode'].isin(shorts)]
             shortages = self.frame[self.frame['AcctCode'].isin(shorts)]
             report = report.groupby(['TitleCoNum','State','AcctCode']).agg({'Invoice Line Total':'sum','File Number':'first',
-                                                                           'PaymentDate':'first','CloseAgent':'first'}).reset_index()
-            shortages = shortages[['TitleCoNum','State','AcctCode','Invoice Line Total','File Number','PaymentDate','CloseAgent']]
+                                                                            'PaymentDate':'first','CloseAgent':'first'}).reset_index()
             return pd.concat([report, shortages], ignore_index=True)
-        else:
-            return self.frame.groupby(['TitleCoNum','State','AcctCode']).agg({'Invoice Line Total':'sum','PaymentDate':'last',
-                                                                              'File Number':'last','EscrowBank':'last','CloseAgent':'last'})
-
-    def get_posting_date(self):
-        for i, cell in enumerate(self.df['PaymentDate']):
-            if type(cell) == pd._libs.tslibs.timestamps.Timestamp:
-                return datetime.date.strftime(cell, '%m/%d/%Y')
-
-    def get_total(self):
-        return round(self.df['Invoice Line Total'].sum(), 2)
-
-    def get_acct(self):
-        return self.accts[self.escrow]['bank']
-
-    def get_sheetname(self):
-        return self.accts[self.escrow]['sheet']
+        return self.frame.groupby(['TitleCoNum','State','AcctCode']).agg({'Invoice Line Total':'sum','File Number':'first',
+                                                                       'PaymentDate':'first','CloseAgent':'first'}).reset_index()
 
     def states(self):
         for i, cell in enumerate(self.df['File Number']):
             if not cell.startswith('CS'):
-                state = cell.split('-')[-1]
                 if cell.split('-')[-1] == 'R':
                     yield '01'
                 else:
@@ -75,13 +84,16 @@ class Cash:
 
     def branches(self):
         for i, cell in enumerate(self.df['File Number']):
-            if cell[-5:] in self.branch.keys(): yield self.branch[cell[-5:]]
-            else: yield '000'
+            if cell[-5:] in self.branch.keys():
+                yield self.branch[cell[-5:]]
+            else:
+                yield '000'
         yield '000'
 
     def accounts(self):
-        for i, cell in enumerate(self.df['AcctCode']): yield str(cell)
-        yield self.acct
+        for i, cell in enumerate(self.df['AcctCode']):
+            yield cell
+        yield self.acct 
 
     def debits(self):
         for i, cell in enumerate(self.df['Invoice Line Total']):
@@ -138,18 +150,14 @@ class Cash:
             if self.report['Credits'][i] == 0:
                 self.report.drop([i], inplace=True)
 
-class Count:
+class Count(Data):
 
-    def __init__(self, df, escrow):
-        self.frame = df
-        self.escrow = escrow
+    def __init__(self, frame, escrow):
+        super().__init__(frame, escrow)
         self.df = self.group_frame()
         self.totals = list(self.totals())
-        self.accts = self.accounts()
-        self.branches = self.branches()
         self.counts = list(self.counts())
         self.debits = list(self.debits())
-        self.date = self.get_date()
         self.report = pd.DataFrame({
                        'Date': list(self.dates()),
                        'Type': list(self.types()),
@@ -161,26 +169,10 @@ class Count:
                        'Description Reference': list(self.references()),
                        'Debits': self.debits,
                        'Credits': list(self.credits()),
-        })
+                        })
 
     def group_frame(self):
         return self.frame.groupby(['TitleCoNum','State','OrderCategory']).agg({'Invoice Line Total':'sum','File Number':'first'}).reset_index()
-
-    def get_date(self):
-        for i, cell in enumerate(self.frame['PaymentDate']):
-            if type(cell) == pd._libs.tslibs.timestamps.Timestamp:
-                return datetime.date.strftime(cell, '%m/%d/%Y')
-
-    def accounts(self):
-        with open('accounts.pickle', 'rb') as f:
-            return pickle.load(f)
-
-    def branches(self):
-        with open('branches.pickle', 'rb') as f:
-            return pickle.load(f)
-
-    def group(self):
-        return list(self.df.groupby(['TitleCoNum','State','OrderCategory']))
 
     def totals(self):
         for i, cell in enumerate(self.df['Invoice Line Total']):
@@ -188,10 +180,9 @@ class Count:
 
     def co_branches(self):
         for i, cell in enumerate(self.df['File Number']):
-            k = cell[-5:]
-            if k in self.branches.keys():
-                yield self.branches[k]
-                yield self.branches[k]
+            if cell[-5:] in self.branch.keys():
+                yield self.branch[cell[-5:]]
+                yield self.branch[cell[-5:]]
             else:
                 yield '000'
                 yield '000'
@@ -209,7 +200,7 @@ class Count:
                 yield cell.split('-')[-1]
                 yield cell.split('-')[-1]
         yield '00'
-    
+
     def counts(self):
         L = list(self.frame.groupby(['TitleCoNum','State','OrderCategory']))
         for i in range(len(L)):
@@ -235,11 +226,11 @@ class Count:
     def credits(self):
         for i in range(len(self.debits)):
             yield np.nan
-
+                
     def dates(self):
         for _ in range(len(self.debits)):
             yield self.date 
-
+    
     def types(self):
         for _ in range(len(self.debits)):
             yield 'G/L Account'
@@ -258,9 +249,8 @@ class Count:
              12: {'revenue': '90600', 'count': '90512'},
              29: {'revenue': '90600', 'count': '90512'},
              }
-        df = self.df.groupby(['TitleCoNum','State','OrderCategory']).agg({'Invoice Line Total':'sum','File Number':'first'}).reset_index()
-        for i in range(len(df)):
-            oc = df['OrderCategory'][i]
+        for i in range(len(self.df)):
+            oc = self.df['OrderCategory'][i]
             yield D[oc]['revenue']
             yield D[oc]['count']
         yield '99998'
@@ -286,32 +276,25 @@ class Count:
         for i, cell in enumerate(self.report['Debits']):
             if cell == 0:
                 self.report.drop([i], inplace=True)
-        
 
 def create_worksheet(filename):
-    df = pd.read_excel(filename, converters={'AcctCode':str, 'Invoice Line Total':float})
-    ending = 'cash_receipts.xlsx'
+    sheet = pd.read_excel(filename, converters={'AcctCode':str,'Invoice Line Total':float})
+    filename = ''
     arr = []
 
-    for escrow, df in df.groupby('EscrowBank'):
-        frames = []
-        cash = Cash(escrow, df)
-        cash.split_shortages()
+    for escrow, df in sheet.groupby('EscrowBank'):
+        data = Data(df, escrow)
+        cash = Cash(df, escrow)
         cash.fix_report()
         count = Count(df, escrow)
         count.fix_report()
-        wb_date = cash.date
-        frames.append(cash.report)
-        frames.append(count.report)
-        frame = pd.concat(frames, ignore_index=True)
-        s = frame[frame['Type'] == 'Bank Account'].index.values[0] + 3
-        e = frame[frame['Account'] == '99998'].index.values[0] + 1
+        df = pd.concat([cash.report, count.report], ignore_index=True)
+        filename = data.filename 
+        s = df[df.Type == 'Bank Account'].index.values[0] + 3
+        e = df[df.Account == '99998'].index.values[0] + 1
         f = '=SUM(I{}:I{})'.format(s,e)
-        arr.append((frame, cash.sheet, f, e))
-
-    wb_date = wb_date.replace('/', '_')
-    filename = 'journals/{} {}'.format(wb_date, ending)
-
+        arr.append((df, data.sheet, f, e))
+        
     arr = sorted(arr, key=lambda x: x[1])
 
     with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
@@ -321,7 +304,7 @@ def create_worksheet(filename):
             arr[i][0].to_excel(writer, sheet_name=arr[i][1], index=False)
             workbook = writer.book
             worksheet = writer.sheets[arr[i][1]]
-            format1 = workbook.add_format({'num_format': '##0.00'})
+            format1 = workbook.add_format({'num_format':'##0.00'})
             worksheet.set_column(0, 2, 12)
             worksheet.set_column(3, 3, 3)
             worksheet.set_column(4, 5, 7)
