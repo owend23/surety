@@ -6,7 +6,7 @@ import datetime
 class Data:
 
     def __init__(self, frame, escrow):
-        self.frame = frame
+        self.frame = self.load_dataframe(frame)
         self.escrow = escrow
         self.accts = self.load_accts()
         self.branch = self.load_branches()
@@ -16,8 +16,11 @@ class Data:
         self.acct = self.get_acct()
         self.sheet = self.get_sheetname()
 
-    def load_dataframe(self):
-        return pd.read_excel(self.file, converters={'AcctCode':str,'Invoice Line Total':float})
+    def load_dataframe(self, frame):
+        for i, cell in enumerate(frame['State']):
+            if str(cell) == 'nan':
+                frame.loc[i, 'State'] = 'NJ'
+        return frame
 
     def load_accts(self):
         with open('accounts.pickle', 'rb') as f: return pickle.load(f)
@@ -37,7 +40,10 @@ class Data:
         return round(self.frame['Invoice Line Total'].sum(), 2)
 
     def get_acct(self):
-        return self.accts[self.escrow]['bank']
+        try:
+            return self.accts[self.escrow]['bank']
+        except KeyErorr:
+            return np.nan
 
     def get_sheetname(self):
         return self.accts[self.escrow]['sheet']
@@ -92,7 +98,10 @@ class Cash(Data):
 
     def accounts(self):
         for i, cell in enumerate(self.df['AcctCode']):
-            yield cell
+            if cell == '43502' and self.sheet == 'G21':
+                yield '43501'
+            else:
+                yield cell
         yield self.acct 
 
     def debits(self):
@@ -150,6 +159,34 @@ class Cash(Data):
             if self.report['Credits'][i] == 0:
                 self.report.drop([i], inplace=True)
 
+    def final_report(self):
+        shortages = self.report[self.report.Account.str.startswith('663')]
+        report = self.report[~self.report.Account.str.startswith('663')]
+        report = report[report['Type'] == 'G/L Account']
+        total = self.report[self.report['Type'] == 'Bank Account']
+
+        report = report.groupby(['Account','Branch','St']).agg({'Date':'first','Type':'first','Dept':'first',
+                                                                         'Account Desr':'first','Description Reference':'first',
+                                                                         'Debits':'sum','Credits':'sum'},as_index=False).reset_index()
+        report = pd.DataFrame({'Date':report.Date.tolist(),
+                       'Type':report.Type.tolist(),
+                       'Account':report.Account.tolist(),
+                       'St':report.St.tolist(),
+                       'Branch':report['Branch'].tolist(),
+                       'Dept':report.Dept.tolist(),
+                       'Account Desr':report['Account Desr'].tolist(),
+                       'Description Reference':report['Description Reference'].tolist(),
+                       'Debits': report.Debits.tolist(),
+                       'Credits': report.Credits.tolist()})
+
+        for i, cell in enumerate(report['Debits']):
+            if cell == 0:
+                report.loc[i, 'Debits'] = np.nan
+            elif report['Credits'][i] == 0:
+                report.loc[i, 'Credits'] = np.nan
+        
+        return pd.concat([report, shortages, total], ignore_index=True)
+
 class Count(Data):
 
     def __init__(self, frame, escrow):
@@ -170,6 +207,7 @@ class Count(Data):
                        'Debits': self.debits,
                        'Credits': list(self.credits()),
                         })
+        self.final = self.final_report()
 
     def group_frame(self):
         return self.frame.groupby(['TitleCoNum','State','OrderCategory']).agg({'Invoice Line Total':'sum','File Number':'first'}).reset_index()
@@ -276,6 +314,47 @@ class Count(Data):
         for i, cell in enumerate(self.report['Debits']):
             if cell == 0:
                 self.report.drop([i], inplace=True)
+
+    def final_report(self):
+        total = self.report[self.report.Account == '99998']
+        report = self.report[self.report.Account != '99998']
+        report = report.groupby(['Account','Branch','St']).agg({'Date':'first','Type':'first',
+                                                                         'Dept':'first','Account Desr':'first',
+                                                                         'Description Reference':'first','Debits':'sum',
+                                                                         'Credits':'sum'},as_index=False).reset_index()
+        report = report.sort_values('Account', ascending=False)
+
+
+        report = pd.DataFrame({'Date':report.Date.tolist(),
+                       'Type':report.Type.tolist(),
+                       'Account':report.Account.tolist(),
+                       'St':report.St.tolist(),
+                       'Branch':report['Branch'].tolist(),
+                       'Dept':report.Dept.tolist(),
+                       'Account Desr':report['Account Desr'].tolist(),
+                       'Description Reference':report['Description Reference'].tolist(),
+                       'Debits': report.Debits.tolist(),
+                       'Credits': report.Credits.tolist()})
+
+        report = pd.concat([report, total], ignore_index=True)
+
+        for i, cell in enumerate(report['Debits']):
+            if cell == 0:
+                report.loc[i, 'Debits'] = np.nan
+            elif report['Credits'][i] == 0:
+                report.loc[i, 'Credits'] = np.nan
+        
+        return report
+
+def update_account_database():
+    with open('accounts.pickle', 'rb') as f:
+        D = pickle.load(f)
+    escrow = int(input('Escrow Bank: '))
+    acct = str(input('Account: '))
+    sheet = str(input('Sheetname: '))
+    D[escrow] = {'bank':acct, 'sheet':sheet}
+    with open('accounts.pickle', 'wb') as f:
+        pickle.dump(D, f, pickle.HIGHEST_PROTOCOL)
 
 def create_worksheet(filename):
     sheet = pd.read_excel(filename, converters={'AcctCode':str,'Invoice Line Total':float})
