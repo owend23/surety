@@ -40,10 +40,7 @@ class Data:
         return round(self.frame['Invoice Line Total'].sum(), 2)
 
     def get_acct(self):
-        try:
-            return self.accts[self.escrow]['bank']
-        except KeyErorr:
-            return np.nan
+        return self.accts[self.escrow]['bank']
 
     def get_sheetname(self):
         return self.accts[self.escrow]['sheet']
