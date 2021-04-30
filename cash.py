@@ -5,64 +5,48 @@ import pickle
 class Data:
 
     def __init__(self):
-        self.accts = self.load_database('/data/workspace_files/accounts.pickle')
-        self.branches = self.load_database('/data/workspace_files/branches.pickle')
-        self.accounts = {2: {'revenue':'96002','count':'90502'},
-             1: {'revenue': '96000', 'count':'90500'},
-             4: {'revenue': '96004', 'count': '90504'},
-             5: {'revenue': '96005', 'count': '90505'},
-             7: {'revenue': '96023', 'count': '90511'},
-             11: {'revenue': '96021', 'count': '90605'},
-             8: {'revenue': '96023', 'count': '?????'},
-             10: {'revenue': '96021', 'count': '90601'},
-             16: {'revenue': '96003', 'count': '90503'},
-             9: {'revenue': '96020', 'count': '90600'},
-             12: {'revenue': '90600', 'count': '90512'},
-             29: {'revenue': '90600', 'count': '90512'},
-             }
+        self.accts = self.loadDatabase('/data/workspace_files/databases/accounts.pickle')
+        self.branches = self.loadDatabase('/data/workspace_files/databases/branches.pickle')
+        self.accounts = self.loadDatabase('/data/workspace_files/databases/closing.pickle')
 
-    def load_database(self, filename):
-        with open(filename, 'rb') as f:
-            return pickle.load(f)
+    def loadDatabase(self, filename):
+        with open(filename, 'rb') as f: return pickle.load(f)
 
 class Cash(Data):
-
     def __init__(self, escrow, df):
         super().__init__()
         self.escrow = escrow
         self.sheet = self.accts[escrow]['sheet']
-        self.date = self.get_date(df)
+        self.date = self.getDate(df)
         self.filename = '/data/workspace_files/journals/cash_receipts/{} cash_receipts.xlsx'.format(self.date.replace('/','_'))
-        self.df = self.group_dataframe(df)
+        self.df = self.groupDataframe(df)
         self.total = self.total_row(df)
         self.report = pd.concat([self.df,self.total], ignore_index=True)
 
-    def group_dataframe(self, df):
+    def groupDataframe(self, df):
         shorts = ['66300','66302']
         shortages = df[df.AcctCode.isin(shorts)]
         cash = df[~df.AcctCode.isin(shorts)]
         cash = cash.groupby(['TitleCoNum','Branch','state_code','AcctCode']).agg({'Invoice Line Total':'sum','PaymentDate':'first','dept':'first',
                                                                         'File Number':'first','CloseAgent':'first','File':'first'}).reset_index()
         cash = pd.concat([cash, shortages], ignore_index=True)
-
         cash['Type'] = ['G/L Account' for i in range(len(cash))]    
         cash['Account Desr'] = ['{} {}'.format(cash['File Number'][i],cash['CloseAgent'][i]) if cash.AcctCode[i] in shorts else np.nan for i in range(len(cash))]
         cash['Description Reference'] = ['{} RQ DEP'.format(cash['PaymentDate'][i]) for i in range(len(cash))]
         cash['Debits'] = [abs(round(x, 2)) if x < 0 else np.nan for x in cash['Invoice Line Total']]
         cash['Credits'] = [round(x, 2) if x >= 0 else np.nan for x in cash['Invoice Line Total']]
-
         cash = cash[['PaymentDate','Type','AcctCode','state_code','Branch','dept','Account Desr','Description Reference','Debits','Credits']]
         cash.rename(columns = {'PaymentDate':'Date','AcctCode':'Account','state_code':'St','dept':'Dept'}, inplace=True)
-
+        cash.sort_values(by=['Branch','Account'], inplace=True)
         return cash
     
-    def get_date(self, df):
+    def getDate(self, df):
         return df['PaymentDate'].tolist()[0]
 
     def total_row(self, df):
         total = round(df['Invoice Line Total'].sum(), 2)
         description = '{} RQ DEP'.format(self.date)
-        D = pd.DataFrame({
+        return pd.DataFrame({
             'Date': [self.date],
             'Type': ['Bank Account'],
             'Account': [self.accts[self.escrow]['bank']],
@@ -74,8 +58,6 @@ class Cash(Data):
             'Debits': [total],
             'Credits': [np.nan]
         })
-        return D
-        
 
 class Count(Data):
 
@@ -84,57 +66,44 @@ class Count(Data):
         self.frame = df
         self.escrow = escrow
         self.date = self.frame['PaymentDate'].tolist()[0]
-        self.df = self.group_frame(df)
+        self.df = self.groupFrame(df)
         self.totals = list(self.totals())
         self.counts = list(self.counts())
         self.debits = list(self.debits())
         self.report = self.create_report()
 
-    def group_frame(self, df):
+    def groupFrame(self, df):
         return df.groupby(['TitleCoNum','state_code','OrderCategory']).agg({'Invoice Line Total':'sum', 'File':'first','Branch':'first','dept':'first','PaymentDate':'first'}).reset_index()
 
     def totals(self):
-        for i, cell in enumerate(self.df['Invoice Line Total']):
-            yield round(cell, 2)
+        for i, cell in enumerate(self.df['Invoice Line Total']): yield round(cell, 2)
 
     def counts(self):
         for (tco, st, oc), df in self.frame.groupby(['TitleCoNum','state_code','OrderCategory']):
-            if oc in [1, 4]:
-                yield len(set(df[df.AcctCode == '40000']['File Number']))
-            elif oc in [2, 5]:
-                yield len(set(df[df.AcctCode == '40002']['File Number']))
-            else:
-                yield len(set(df['File Number']))
+            if oc in [1, 4]: yield len(set(df[df.AcctCode == '40000']['File Number']))
+            elif oc in [2, 5]: yield len(set(df[df.AcctCode == '40002']['File Number']))
+            else: yield len(set(df['File Number']))
 
     def debits(self):
-        for i in range(len(self.totals)):
-            yield self.totals[i]
-            yield self.counts[i]
+        for i in range(len(self.totals)): yield self.totals[i]; yield self.counts[i]
         yield np.nan
 
     def acct_codes(self):
         for i in range(len(self.df)):
             oc = self.df['OrderCategory'][i]
-            yield self.accounts[oc]['revenue']
-            yield self.accounts[oc]['count']
+            yield self.accounts[oc]['revenue']; yield self.accounts[oc]['count']
         yield '99998'
 
     def states(self):
         for i in range(len(self.df)):
-            yield self.df['state_code'][i]
-            yield self.df['state_code'][i]
+            yield self.df['state_code'][i]; yield self.df['state_code'][i]
         yield '00'
 
     def co_branches(self):
         for i in range(len(self.df)):
-            if self.df['File'][i] in self.branches.keys():
-                yield self.branches[self.df['File'][i]]
-                yield self.branches[self.df['File'][i]]
-            else:
-                yield '000'
-                yield '000'
+            if self.df['File'][i] in self.branches.keys(): yield self.branches[self.df['File'][i]]; yield self.branches[self.df['File'][i]]
+            else: yield '000'; yield '000'
         yield '000'
-
 
     def create_report(self):
         return pd.DataFrame({
@@ -152,41 +121,29 @@ class Count(Data):
 
     def fix_report(self):
         for i, cell in enumerate(self.report['Account']):
-            if cell.startswith('???'):
-                self.report.drop([i], inplace=True)
-            elif cell == '96021' and self.accts[self.escrow]['sheet'] == 'ESL NJ':
-                self.report.loc[i, 'Account'] = '96024'
-            elif self.report['Debits'][i] == 0:
-                self.report.drop([i], inplace=True)
+            if cell.startswith('???'): self.report.drop([i], inplace=True)
+            elif cell == '96021' and self.accts[self.escrow]['sheet'] == 'ESL NJ': self.report.loc[i, 'Account'] = '96024'
+            elif self.report['Debits'][i] == 0: self.report.drop([i], inplace=True)
 
 def load_worksheet(filename):
     df = pd.read_excel(filename, converters={'AcctCode':str,'Invoice Line Total':np.float64})
     df.State.replace(np.nan, 'NJ', inplace=True)
-
     df['File'] = df['File Number'].str[-5:]
     for i in range(len(df['File'])):
-        if not df['File'][i][-1].isnumeric():
-            df.loc[i, 'File'] = df['File'][i].split('-')[0][1:] + '-01'
-        elif df['File'][i].startswith('CS'):
-            df.loc[i, 'File'] = 'ST-01'
-    
+        if not df['File'][i][-1].isnumeric(): df.loc[i, 'File'] = df['File'][i].split('-')[0][1:] + '-01'
+        elif df['File'][i].startswith('CS'): df.loc[i, 'File'] = 'ST-01'
     def load_database(path):
-        with open(path, 'rb') as f:
-            return pickle.load(f)
-
-    branches = load_database('/data/workspace_files/branches.pickle')
-
+        with open(path, 'rb') as f: return pickle.load(f)
+    branches = load_database('/data/workspace_files/databases/branches.pickle')
     df['Branch'] = df['File'].str[-5:].map(lambda x: branches[x] if x in branches.keys() else '000')
     df['state_code'] = df['File'].str[-2:]
     df['dept'] = ['02' if x.startswith('6') else '00' for x in df.AcctCode]
     df['PaymentDate'] = pd.to_datetime(df['PaymentDate']).dt.strftime("%m/%d/%Y")
-
     return df
         
 def create_worksheet(filename):
     df = load_worksheet(filename)
     filename = ''
-
     arr = []
     for escrow, frame in df.groupby('EscrowBank'):
         cash = Cash(escrow, frame)
@@ -198,9 +155,7 @@ def create_worksheet(filename):
         e = report[report.Account == '99998'].index.values[0] + 1
         f = '=SUM(I{}:I{})'.format(s,e)
         arr.append((report, cash.sheet, f, e))
-    
     arr = sorted(arr, key=lambda x: x[1])
-
     with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
         print('Creating', filename.split('/')[-1])
         for i in range(len(arr)):
