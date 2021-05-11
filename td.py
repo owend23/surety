@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import pickle
-import datetime
 import calendar
 import os
 
@@ -142,6 +141,8 @@ class TD:
                         self.report.loc[i, 'No'] = k
             if self.report['Direct Unit Cost'][i] < 0:
                 self.report.loc[i, 'No'] = '19999'
+            if 'CONDOCERTS' in cell.split() and self.report['Direct Unit Cost'] > 300:
+                self.report.loc[i, 'No'] = '63400'
 
 
 def generate_td(dir):
