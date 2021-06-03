@@ -144,6 +144,21 @@ def load_worksheet(filename):
 		elif df['File'][i].startswith('CS'):
 			df.loc[i, 'File'] = 'ST-01'
 	
+	files = []
+	for i, cell in enumerate(df['AcctCode'])):
+		if cell in ['40000', '40002'] and df['OrderCategory'][i] not in [1, 2, 4, 5, 16]:
+			files.append(df['File Number'][i])
+			
+	oc_changes = []
+	for file in files:
+		if '40000' in df[df['File Number'] == file]['AcctCode']:
+			oc_changes.append((df[df['File Number'] == file].index.tolist(), 1))
+		else:
+			oc_changes.append((df[df['File Number'] == file].index.tolist(), 2))
+			
+	for i in range(len(oc_changes)):
+		df.loc[oc_changes[i][0], 'OrderCategory'] = oc_changes[i][1]
+		
 	with open('/data/workspace_files/databases/branches.pickle', 'rb') as f:
 		branches = pickle.load(f)
 		
